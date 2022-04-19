@@ -1,0 +1,122 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r}
+## Setup
+### Bioconductor and CRAN libraries used
+library(tidyverse)
+library(RColorBrewer)
+library(DESeq2)
+library(pheatmap)
+library(DEGreport)
+```
+
+
+```{r}
+data <- read.table("C:/Users/User/Desktop/d/Mov10_full_counts.txt", header=T, row.names=1) 
+
+meta <- read.table("C:/Users/User/Desktop/d/Mov10_full_meta.txt", header=T, row.names=1)
+
+```
+
+```{r}
+mean_counts <- apply(data[, 3:5], 1, mean)
+variance_counts <- apply(data[, 3:5], 1, var)
+df <- data.frame(mean_counts, variance_counts)
+
+ggplot(df) +
+        geom_point(aes(x=mean_counts, y=variance_counts)) + 
+        geom_line(aes(x=mean_counts, y=mean_counts, color="red")) +
+        scale_y_log10() +
+        scale_x_log10()
+```
+
+
+### Match the metadata and counts data
+```{r}
+### Check that sample names match in both files
+all(colnames(data) %in% rownames(meta))
+all(colnames(data) == rownames(meta))
+```
+
+### Create DESEq2 object
+```{r}
+dds <- DESeqDataSetFromMatrix(countData = data, colData = meta, design = ~ sampletype)
+```
+
+
+```{r}
+View(counts(dds))
+```
+
+
+## Generate the Mov10 normalized counts
+
+```{r}
+dds <- estimateSizeFactors(dds)
+```
+
+```{r}
+sizeFactors(dds)
+```
+
+
+```{r}
+normalized_counts <- counts(dds, normalized=TRUE)
+```
+
+
+
+```{r}
+write.table(normalized_counts, file="C:/Users/User/Desktop/d/normalized_counts.txt", sep="\t", quote=F, col.names=NA)
+```
+
+## Transform normalized counts using the rlog transformation
+
+```{r}
+### Transform counts for data visualization
+rld <- rlog(dds, blind=TRUE)
+```
+
+```{r}
+### Plot PCA 
+plotPCA(rld, intgroup="sampletype")
+```
+
+```{r}
+# Input is a matrix of log transformed values
+ rld <- rlog(dds, blind=T)
+ rld_mat <- assay(rld)
+ pca <- prcomp(t(rld_mat))
+```
+
+```{r}
+ # Create data frame with metadata and PC3 and PC4 values for input to ggplot
+ df <- cbind(meta, pca$x)
+ ggplot(df) + geom_point(aes(x=PC3, y=PC4, color = sampletype))
+```
+
+```{r}
+### Extract the rlog matrix from the object
+rld_mat <- assay(rld)    ## assay() is function from the "SummarizedExperiment" package that was loaded when you loaded DESeq2
+```
+
+```{r}
+### Compute pairwise correlation values
+rld_cor <- cor(rld_mat)    ## cor() is a base R function
+
+head(rld_cor)   ## check the output of cor(), make note of the rownames and colnames
+```
+
+```{r}
+### Plot heatmap
+pheatmap(rld_cor)
+```
+
+```{r}
+heat.colors <- brewer.pal(6, "Blues")
+pheatmap(rld_cor, color = heat.colors, border_color=NA, fontsize = 10, 
+			fontsize_row = 10, height=20)
+```
+
